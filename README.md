@@ -1,6 +1,6 @@
 # RSL Triagem — Ferramenta de Triagem Automatizada para Revisões Sistemáticas da Literatura
 
-> Ferramenta desenvolvida como Trabalho de Conclusão de Curso (TCC) no IFPI — Campus Piripiri (2025).  
+> Ferramenta desenvolvida como Trabalho de Conclusão de Curso (TCC) no IFPI — Campus Piripiri (2026).  
 > Automatiza a triagem de artigos científicos em processos de RSL utilizando Inteligência Artificial.
 
 ---
