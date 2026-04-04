@@ -750,6 +750,13 @@
       <div class="status-msg" id="status-resultados"></div>
     </div>
 
+    <!-- PLANILHA PAGE -->
+    <div id="page-planilha" class="page">
+      <div class="page-header">
+        <h2>Planilha Google Sheets</h2>
+        <p>Visualize e edite os dados diretamente aqui</p>
+      </div>
+
       <div class="card" style="text-align:center;padding:2rem;">
         <p style="font-size:14px;color:var(--text2);margin-bottom:1rem;">Os resultados da triagem são salvos automaticamente na planilha do Google Sheets.</p>
         <a href="https://docs.google.com/spreadsheets/d/1-TEQLYxrKOg9Jf8lLDTqw4JsS_b5mfKHRhEuqQfq-A4/edit?usp=sharing" target="_blank" class="btn btn-primary" style="text-decoration:none;display:inline-flex;">
@@ -884,17 +891,7 @@
           })
         });
 
-        if (response.ok) {
-          successCount++;
-        } else {
-          console.error('Erro HTTP ao enviar ' + file.name + ': ' + response.status);
-        }
-
-        // Aguarda 5s entre arquivos para não sobrecarregar o Groq
-        if (i < selectedFiles.length - 1) {
-          updateLoading(`Aguardando antes do próximo arquivo... (${i+1}/${selectedFiles.length} concluídos)`);
-          await new Promise(resolve => setTimeout(resolve, 5000));
-        }
+        if (response.ok) successCount++;
       } catch(e) {
         console.error('Erro ao enviar ' + file.name, e);
       }
@@ -955,7 +952,16 @@
         body: JSON.stringify({ acao: 'resultados' })
       });
       const data = await r.json();
-      allResults = Array.isArray(data) ? data : (data.dados || []);
+      // n8n "All Incoming Items" retorna [{dados: [...]}]
+      if (Array.isArray(data) && data[0] && data[0].dados) {
+        allResults = data[0].dados;
+      } else if (data.dados) {
+        allResults = data.dados;
+      } else if (Array.isArray(data)) {
+        allResults = data;
+      } else {
+        allResults = [];
+      }
       renderResultados(allResults);
       atualizarMetricas(allResults);
       setStatus('status-resultados', '', '');
