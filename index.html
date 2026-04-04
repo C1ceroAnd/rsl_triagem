@@ -778,8 +778,10 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>
           URLs do sistema
         </div>
-        <label>URL do Webhook n8n</label>
+        <label>URL do Webhook — Triagem</label>
         <input type="text" id="config-webhook" value="https://n8n-production-838b.up.railway.app/webhook/Triagem_RSL">
+        <label>URL do Webhook — Resultados</label>
+        <input type="text" id="config-webhook-resultados" value="https://n8n-production-838b.up.railway.app/webhook/resultados-rsl">
         <label>URL da Planilha Google Sheets (pubhtml)</label>
         <input type="text" id="config-sheets" value="https://docs.google.com/spreadsheets/d/1-TEQLYxrKOg9Jf8lLDTqw4JsS_b5mfKHRhEuqQfq-A4/pubhtml?widget=true&headers=false">
         <button class="btn btn-primary" onclick="salvarConfig()">
@@ -944,7 +946,7 @@
   async function carregarResultados() {
     setStatus('status-resultados', 'Carregando...', 'loading');
     try {
-      const r = await fetch(WEBHOOK_URL().replace('/Triagem_RSL', '/resultados-rsl'), {
+      const r = await fetch(document.getElementById('config-webhook-resultados').value.trim(), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ acao: 'resultados' })
