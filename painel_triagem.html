@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>RSL Triagem — IFPI Piripiri</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg: #0f0f0d;
+    --surface: #1a1a17;
+    --border: #2e2e28;
+    --accent: #c8f060;
+    --accent-dim: #8aab30;
+    --text: #f0ede6;
+    --text-muted: #7a7a6e;
+    --text-dim: #4a4a42;
+    --red: #ff5c4d;
+    --amber: #ffb84d;
+    --green: #6ddc8b;
+    --radius: 10px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; min-height: 100vh; overflow-x: hidden; }
+
+  /* Header */
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 1.5rem 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    background: rgba(15,15,13,0.92);
+    backdrop-filter: blur(12px);
+    z-index: 100;
+  }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px var(--accent); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .logo-text { font-family: 'DM Serif Display', serif; font-size: 18px; letter-spacing: -0.3px; }
+  .logo-sub { font-size: 12px; color: var(--text-muted); font-family: 'DM Mono', monospace; }
+  .header-badge { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--accent); border: 1px solid var(--accent-dim); padding: 4px 10px; border-radius: 20px; }
+
+  /* Layout */
+  .container { max-width: 1100px; margin: 0 auto; padding: 2.5rem 2rem; }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 2px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 4px; margin-bottom: 2rem; }
+  .tab { flex: 1; padding: 10px; text-align: center; font-size: 13px; font-weight: 500; cursor: pointer; border-radius: 9px; border: none; background: none; color: var(--text-muted); transition: all 0.2s; font-family: 'DM Sans', sans-serif; }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: var(--border); color: var(--accent); }
+  .panel { display: none; animation: fadeIn 0.3s ease; }
+  .panel.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* Cards */
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.5rem; margin-bottom: 1rem; }
+  .card-title { font-family: 'DM Serif Display', serif; font-size: 18px; margin-bottom: 6px; }
+  .card-desc { font-size: 13px; color: var(--text-muted); line-height: 1.6; margin-bottom: 1.25rem; }
+
+  /* Form elements */
+  label { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; display: block; margin-bottom: 8px; }
+  input[type="text"], textarea, select {
+    width: 100%; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    padding: 10px 14px; font-size: 14px; color: var(--text); font-family: 'DM Sans', sans-serif;
+    outline: none; transition: border-color 0.2s;
+  }
+  input[type="text"]:focus, textarea:focus { border-color: var(--accent-dim); }
+  textarea { resize: vertical; min-height: 100px; line-height: 1.6; }
+  .form-group { margin-bottom: 1.25rem; }
+
+  /* Upload area */
+  .upload-zone {
+    border: 2px dashed var(--border); border-radius: var(--radius); padding: 3rem 2rem;
+    text-align: center; cursor: pointer; transition: all 0.2s; position: relative;
+  }
+  .upload-zone:hover, .upload-zone.dragover { border-color: var(--accent-dim); background: rgba(200,240,96,0.03); }
+  .upload-zone input[type="file"] { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .upload-icon { font-size: 36px; margin-bottom: 12px; }
+  .upload-title { font-family: 'DM Serif Display', serif; font-size: 20px; margin-bottom: 6px; }
+  .upload-hint { font-size: 13px; color: var(--text-muted); }
+  .file-list { margin-top: 1rem; display: flex; flex-direction: column; gap: 6px; }
+  .file-item { display: flex; align-items: center; gap: 10px; background: var(--bg); border: 1px solid var(--border); border-radius: 7px; padding: 8px 12px; font-size: 13px; }
+  .file-item .remove { margin-left: auto; cursor: pointer; color: var(--text-dim); font-size: 16px; line-height: 1; }
+  .file-item .remove:hover { color: var(--red); }
+
+  /* Buttons */
+  .btn { padding: 10px 22px; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; transition: all 0.2s; font-family: 'DM Sans', sans-serif; border: none; }
+  .btn-primary { background: var(--accent); color: #0f0f0d; }
+  .btn-primary:hover { background: #d4f572; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-outline { background: none; border: 1px solid var(--border); color: var(--text); }
+  .btn-outline:hover { border-color: var(--text-muted); }
+  .btn-danger { background: none; border: 1px solid var(--red); color: var(--red); }
+
+  /* Progress */
+  .progress-bar { background: var(--border); border-radius: 4px; height: 4px; margin: 1rem 0; overflow: hidden; }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 4px; transition: width 0.5s; width: 0%; }
+
+  /* Status */
+  .status-msg { font-size: 13px; font-family: 'DM Mono', monospace; padding: 10px 14px; border-radius: 8px; margin-top: 12px; display: none; }
+  .status-msg.show { display: block; }
+  .status-msg.ok { background: rgba(109,220,139,0.1); color: var(--green); border: 1px solid rgba(109,220,139,0.2); }
+  .status-msg.err { background: rgba(255,92,77,0.1); color: var(--red); border: 1px solid rgba(255,92,77,0.2); }
+  .status-msg.loading { background: rgba(200,240,96,0.07); color: var(--accent); border: 1px solid rgba(200,240,96,0.15); }
+
+  /* Badges */
+  .badge { display: inline-block; font-size: 11px; font-family: 'DM Mono', monospace; padding: 3px 10px; border-radius: 20px; font-weight: 500; }
+  .badge-incluir { background: rgba(109,220,139,0.15); color: var(--green); }
+  .badge-excluir { background: rgba(255,92,77,0.15); color: var(--red); }
+  .badge-revisar { background: rgba(255,184,77,0.15); color: var(--amber); }
+
+  /* Metrics grid */
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 1.5rem; }
+  .metric { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; }
+  .metric-val { font-family: 'DM Serif Display', serif; font-size: 32px; line-height: 1; margin-bottom: 4px; }
+  .metric-label { font-size: 12px; font-family: 'DM Mono', monospace; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+  .metric-val.green { color: var(--green); }
+  .metric-val.red { color: var(--red); }
+  .metric-val.amber { color: var(--amber); }
+
+  /* Results table */
+  .results-list { display: flex; flex-direction: column; gap: 8px; }
+  .result-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1rem 1.25rem; transition: border-color 0.2s; }
+  .result-card:hover { border-color: var(--text-dim); }
+  .result-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 6px; }
+  .result-title { font-size: 14px; font-weight: 500; flex: 1; line-height: 1.4; }
+  .result-meta { font-size: 12px; color: var(--text-muted); font-family: 'DM Mono', monospace; margin-bottom: 6px; }
+  .result-justificativa { font-size: 13px; color: var(--text-muted); line-height: 1.5; }
+  .result-confidence { font-size: 11px; color: var(--text-dim); font-family: 'DM Mono', monospace; margin-top: 6px; }
+
+  /* Sheets embed */
+  .sheets-frame { width: 100%; height: 600px; border: 1px solid var(--border); border-radius: var(--radius); background: #fff; }
+
+  /* Divider */
+  .divider { border: none; border-top: 1px solid var(--border); margin: 1.5rem 0; }
+
+  /* Grid 2 col */
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+
+  /* Step indicator */
+  .steps { display: flex; gap: 8px; margin-bottom: 1.5rem; }
+  .step { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--text-dim); display: flex; align-items: center; gap: 6px; }
+  .step.active { color: var(--accent); }
+  .step.done { color: var(--text-muted); }
+  .step-num { width: 20px; height: 20px; border-radius: 50%; border: 1px solid currentColor; display: flex; align-items: center; justify-content: center; font-size: 10px; flex-shrink: 0; }
+  .step.done .step-num { background: var(--text-muted); color: var(--bg); border-color: var(--text-muted); }
+  .step-sep { color: var(--text-dim); }
+
+  @media (max-width: 700px) {
+    .metrics { grid-template-columns: repeat(2, 1fr); }
+    .grid2 { grid-template-columns: 1fr; }
+    .tabs { flex-wrap: wrap; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    <div>
+      <div class="logo-text">RSL Triagem</div>
+      <div class="logo-sub">IFPI Campus Piripiri · ADS</div>
+    </div>
+  </div>
+  <span class="header-badge">v1.0 · online</span>
+</header>
+
+<div class="container">
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('triagem', this)">Triagem</button>
+    <button class="tab" onclick="switchTab('criterios', this)">Critérios</button>
+    <button class="tab" onclick="switchTab('resultados', this)">Resultados</button>
+    <button class="tab" onclick="switchTab('planilha', this)">Planilha</button>
+  </div>
+
+  <!-- TAB: TRIAGEM -->
+  <div id="tab-triagem" class="panel active">
+    <div class="steps">
+      <div class="step active" id="step1"><div class="step-num">1</div> Upload</div>
+      <div class="step-sep">→</div>
+      <div class="step" id="step2"><div class="step-num">2</div> Revisar</div>
+      <div class="step-sep">→</div>
+      <div class="step" id="step3"><div class="step-num">3</div> Processar</div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Enviar arquivos bibliográficos</div>
+      <div class="card-desc">Arraste e solte seus arquivos .bib ou .ris, ou clique para selecionar. Múltiplos arquivos são suportados.</div>
+
+      <div class="upload-zone" id="uploadZone">
+        <input type="file" id="fileInput" multiple accept=".bib,.ris" onchange="handleFiles(this.files)"/>
+        <div class="upload-icon">⬆</div>
+        <div class="upload-title">Solte os arquivos aqui</div>
+        <div class="upload-hint">Formatos aceitos: .bib (BibTeX) · .ris (RIS) — IEEE, ACM, Scopus</div>
+      </div>
+
+      <div class="file-list" id="fileList"></div>
+    </div>
+
+    <div class="card" id="reviewCard" style="display:none;">
+      <div class="card-title">Revisar antes de enviar</div>
+      <div class="card-desc">Confira os arquivos selecionados e os critérios ativos antes de iniciar a triagem.</div>
+      <div id="reviewContent"></div>
+      <hr class="divider"/>
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button class="btn btn-primary" id="btnProcessar" onclick="processarTriagem()">Iniciar triagem com IA</button>
+        <button class="btn btn-outline" onclick="limparArquivos()">Limpar</button>
+      </div>
+      <div class="progress-bar" id="progressBar" style="display:none;"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="status-msg" id="statusMsg"></div>
+    </div>
+  </div>
+
+  <!-- TAB: CRITÉRIOS -->
+  <div id="tab-criterios" class="panel">
+    <div class="card">
+      <div class="card-title">Configurar critérios de triagem</div>
+      <div class="card-desc">Defina os critérios que o agente de IA vai usar para incluir ou excluir cada artigo. Seja específico para obter melhores resultados.</div>
+
+      <div class="grid2">
+        <div class="form-group">
+          <label>Critérios de inclusão</label>
+          <textarea id="criteriosInclusao" placeholder="Ex: O artigo deve ser revisado por pares&#10;O artigo deve estar em inglês&#10;Deve conter experimentos com redes neurais&#10;Deve ser publicado após 2015"></textarea>
+        </div>
+        <div class="form-group">
+          <label>Critérios de exclusão</label>
+          <textarea id="criteriosExclusao" placeholder="Ex: Artigos em português&#10;Artigos sem resumo disponível&#10;Estudos secundários (revisões sistemáticas)&#10;Artigos duplicados"></textarea>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label>Tema da revisão sistemática</label>
+        <input type="text" id="temaRSL" placeholder="Ex: Uso de LLMs na automação de revisões sistemáticas" />
+      </div>
+
+      <div style="display:flex; gap:10px; align-items:center;">
+        <button class="btn btn-primary" onclick="salvarCriterios()">Salvar critérios</button>
+        <button class="btn btn-outline" onclick="carregarCriteriosPadrao()">Restaurar padrão</button>
+      </div>
+      <div class="status-msg" id="statusCriterios"></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Critérios ativos</div>
+      <div class="card-desc">Estes são os critérios que serão enviados para o agente de IA na próxima triagem.</div>
+      <div id="criteriosAtivos" style="font-family:'DM Mono',monospace; font-size:12px; color:var(--text-muted); white-space:pre-wrap; line-height:1.8;"></div>
+    </div>
+  </div>
+
+  <!-- TAB: RESULTADOS -->
+  <div id="tab-resultados" class="panel">
+    <div class="metrics">
+      <div class="metric"><div class="metric-val" id="mTotal">—</div><div class="metric-label">Total</div></div>
+      <div class="metric"><div class="metric-val green" id="mIncluir">—</div><div class="metric-label">Incluir</div></div>
+      <div class="metric"><div class="metric-val red" id="mExcluir">—</div><div class="metric-label">Excluir</div></div>
+      <div class="metric"><div class="metric-val amber" id="mRevisar">—</div><div class="metric-label">Revisar</div></div>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-bottom:1rem; align-items:center;">
+      <button class="btn btn-outline" onclick="carregarResultados()">Atualizar resultados</button>
+      <select id="filtroDecisao" onchange="filtrarResultados()" style="width:auto; padding:8px 12px;">
+        <option value="">Todos</option>
+        <option value="INCLUIR">Incluir</option>
+        <option value="EXCLUIR">Excluir</option>
+        <option value="REVISAR">Revisar</option>
+      </select>
+    </div>
+
+    <div class="results-list" id="resultsList">
+      <div style="text-align:center; padding:3rem; color:var(--text-dim); font-family:'DM Mono',monospace; font-size:13px;">
+        Clique em "Atualizar resultados" para carregar.
+      </div>
+    </div>
+    <div class="status-msg" id="statusResultados"></div>
+  </div>
+
+  <!-- TAB: PLANILHA -->
+  <div id="tab-planilha" class="panel">
+    <div class="card" style="margin-bottom:1rem;">
+      <div class="card-title">Planilha de resultados</div>
+      <div class="card-desc">Visualize e edite os resultados diretamente na planilha. A coluna <span style="font-family:'DM Mono',monospace;color:var(--accent);">validacao_humana</span> é onde o pesquisador confirma ou altera a decisão da IA.</div>
+      <a href="https://docs.google.com/spreadsheets/d/1-TEQLYxrKOg9Jf8lLDTqw4JsS_b5mfKHRhEuqQfq-A4/edit?usp=sharing" target="_blank" class="btn btn-outline" style="display:inline-block; text-decoration:none; margin-top:4px;">Abrir no Google Sheets ↗</a>
+    </div>
+    <iframe class="sheets-frame" src="https://docs.google.com/spreadsheets/d/1-TEQLYxrKOg9Jf8lLDTqw4JsS_b5mfKHRhEuqQfq-A4/pubhtml?widget=true&headers=false"></iframe>
+  </div>
+
+</div>
+
+<script>
+const WEBHOOK_URL = 'https://n8n-production-838b.up.railway.app/webhook/Triagem_RSL';
+const SHEETS_URL = 'https://docs.google.com/spreadsheets/d/1-TEQLYxrKOg9Jf8lLDTqw4JsS_b5mfKHRhEuqQfq-A4';
+
+let selectedFiles = [];
+let allResults = [];
+
+// --- TABS ---
+function switchTab(name, el) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  el.classList.add('active');
+  if (name === 'criterios') renderCriteriosAtivos();
+}
+
+// --- UPLOAD ---
+function handleFiles(files) {
+  for (const f of files) {
+    if (!selectedFiles.find(x => x.name === f.name)) selectedFiles.push(f);
+  }
+  renderFileList();
+}
+
+function renderFileList() {
+  const list = document.getElementById('fileList');
+  const review = document.getElementById('reviewCard');
+  if (selectedFiles.length === 0) { list.innerHTML = ''; review.style.display = 'none'; return; }
+  list.innerHTML = selectedFiles.map((f, i) => `
+    <div class="file-item">
+      <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--accent);">${f.name.endsWith('.ris') ? 'RIS' : 'BIB'}</span>
+      <span style="font-size:13px;">${f.name}</span>
+      <span style="font-size:12px;color:var(--text-dim);font-family:'DM Mono',monospace;">${(f.size/1024).toFixed(1)} KB</span>
+      <span class="remove" onclick="removeFile(${i})">×</span>
+    </div>`).join('');
+  review.style.display = 'block';
+  renderReview();
+}
+
+function removeFile(i) { selectedFiles.splice(i, 1); renderFileList(); }
+function limparArquivos() { selectedFiles = []; renderFileList(); }
+
+function renderReview() {
+  const inc = localStorage.getItem('criterios_inclusao') || '(não definido)';
+  const exc = localStorage.getItem('criterios_exclusao') || '(não definido)';
+  document.getElementById('reviewContent').innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem;">
+      <div>
+        <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;">Arquivos (${selectedFiles.length})</div>
+        ${selectedFiles.map(f => `<div style="font-size:13px;color:var(--text-muted);padding:3px 0;">· ${f.name}</div>`).join('')}
+      </div>
+      <div>
+        <div style="font-size:11px;font-family:'DM Mono',monospace;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:8px;">Critérios ativos</div>
+        <div style="font-size:12px;color:var(--green);margin-bottom:4px;">+ ${inc.split('\n')[0]}${inc.split('\n').length > 1 ? ' ...' : ''}</div>
+        <div style="font-size:12px;color:var(--red);">− ${exc.split('\n')[0]}${exc.split('\n').length > 1 ? ' ...' : ''}</div>
+      </div>
+    </div>`;
+}
+
+// Drag and drop
+const zone = document.getElementById('uploadZone');
+zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+zone.addEventListener('drop', e => { e.preventDefault(); zone.classList.remove('dragover'); handleFiles(e.dataTransfer.files); });
+
+// --- PROCESSAR TRIAGEM ---
+async function processarTriagem() {
+  if (selectedFiles.length === 0) return showStatus('statusMsg', 'Nenhum arquivo selecionado.', 'err');
+
+  const btn = document.getElementById('btnProcessar');
+  const progressBar = document.getElementById('progressBar');
+  const progressFill = document.getElementById('progressFill');
+  btn.disabled = true;
+  progressBar.style.display = 'block';
+  showStatus('statusMsg', `Enviando ${selectedFiles.length} arquivo(s) para processamento...`, 'loading');
+  setStep(3);
+
+  let enviados = 0;
+  let erros = 0;
+
+  for (const file of selectedFiles) {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('filename', file.name);
+      formData.append('format', file.name.endsWith('.ris') ? 'ris' : 'bibtex');
+      formData.append('criterios_inclusao', localStorage.getItem('criterios_inclusao') || '');
+      formData.append('criterios_exclusao', localStorage.getItem('criterios_exclusao') || '');
+      formData.append('tema', localStorage.getItem('tema_rsl') || '');
+
+      await fetch(WEBHOOK_URL, { method: 'POST', body: formData });
+      enviados++;
+      progressFill.style.width = `${(enviados / selectedFiles.length) * 100}%`;
+    } catch(e) { erros++; }
+  }
+
+  btn.disabled = false;
+  if (erros === 0) {
+    showStatus('statusMsg', `✓ ${enviados} arquivo(s) processado(s) com sucesso! Veja os resultados na aba "Resultados".`, 'ok');
+    setStep(1);
+  } else {
+    showStatus('statusMsg', `${enviados} arquivo(s) enviado(s), ${erros} erro(s). Verifique a conexão com o n8n.`, 'err');
+  }
+}
+
+function setStep(n) {
+  [1,2,3].forEach(i => {
+    const el = document.getElementById('step'+i);
+    el.className = 'step' + (i < n ? ' done' : i === n ? ' active' : '');
+  });
+}
+
+// --- CRITÉRIOS ---
+function salvarCriterios() {
+  const inc = document.getElementById('criteriosInclusao').value.trim();
+  const exc = document.getElementById('criteriosExclusao').value.trim();
+  const tema = document.getElementById('temaRSL').value.trim();
+  localStorage.setItem('criterios_inclusao', inc);
+  localStorage.setItem('criterios_exclusao', exc);
+  localStorage.setItem('tema_rsl', tema);
+  showStatus('statusCriterios', '✓ Critérios salvos localmente.', 'ok');
+  renderCriteriosAtivos();
+}
+
+function carregarCriteriosPadrao() {
+  const inc = `Revisado por pares\nPublicado em inglês\nAborda automação de RSL ou triagem de artigos\nUsa Inteligência Artificial ou Machine Learning\nPublicado após 2015`;
+  const exc = `Artigos em português ou outros idiomas\nArtigos sem resumo disponível\nEstudos secundários (revisões sistemáticas, mapeamentos)\nArtigos duplicados`;
+  document.getElementById('criteriosInclusao').value = inc;
+  document.getElementById('criteriosExclusao').value = exc;
+  document.getElementById('temaRSL').value = 'Automação de revisões sistemáticas com Inteligência Artificial';
+  salvarCriterios();
+}
+
+function renderCriteriosAtivos() {
+  const inc = localStorage.getItem('criterios_inclusao') || '(não configurado)';
+  const exc = localStorage.getItem('criterios_exclusao') || '(não configurado)';
+  const tema = localStorage.getItem('tema_rsl') || '(não configurado)';
+  document.getElementById('criteriosAtivos').textContent =
+    `TEMA: ${tema}\n\nINCLUSÃO:\n${inc.split('\n').map(l => '+ ' + l).join('\n')}\n\nEXCLUSÃO:\n${exc.split('\n').map(l => '- ' + l).join('\n')}`;
+  // Pre-fill inputs
+  document.getElementById('criteriosInclusao').value = inc === '(não configurado)' ? '' : inc;
+  document.getElementById('criteriosExclusao').value = exc === '(não configurado)' ? '' : exc;
+  document.getElementById('temaRSL').value = tema === '(não configurado)' ? '' : tema;
+}
+
+// --- RESULTADOS ---
+async function carregarResultados() {
+  showStatus('statusResultados', 'Buscando resultados...', 'loading');
+  try {
+    const r = await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ acao: 'resultados' })
+    });
+    const text = await r.text();
+    let dados = [];
+    try { dados = JSON.parse(text); } catch(e) {}
+    if (!Array.isArray(dados)) dados = dados.dados || [];
+    allResults = dados;
+    renderResultados(dados);
+    showStatus('statusResultados', '', '');
+  } catch(e) {
+    showStatus('statusResultados', 'Erro ao carregar. Verifique a conexão com o n8n.', 'err');
+  }
+}
+
+function filtrarResultados() {
+  const filtro = document.getElementById('filtroDecisao').value;
+  const dados = filtro ? allResults.filter(x => (x.decisao||'').toUpperCase().includes(filtro)) : allResults;
+  renderResultados(dados);
+}
+
+function renderResultados(dados) {
+  const inc = dados.filter(x => (x.decisao||'').toUpperCase().includes('INCLU')).length;
+  const exc = dados.filter(x => (x.decisao||'').toUpperCase().includes('EXCLU')).length;
+  const rev = dados.filter(x => (x.decisao||'').toUpperCase().includes('REVIS')).length;
+  document.getElementById('mTotal').textContent = dados.length;
+  document.getElementById('mIncluir').textContent = inc;
+  document.getElementById('mExcluir').textContent = exc;
+  document.getElementById('mRevisar').textContent = rev;
+
+  const list = document.getElementById('resultsList');
+  if (dados.length === 0) {
+    list.innerHTML = '<div style="text-align:center;padding:3rem;color:var(--text-dim);font-family:\'DM Mono\',monospace;font-size:13px;">Nenhum resultado encontrado.</div>';
+    return;
+  }
+  list.innerHTML = dados.map(a => {
+    const dec = (a.decisao||'').toUpperCase();
+    const cls = dec.includes('INCLU') ? 'incluir' : dec.includes('EXCLU') ? 'excluir' : 'revisar';
+    return `<div class="result-card">
+      <div class="result-header">
+        <div class="result-title">${a.titulo || '—'}</div>
+        <span class="badge badge-${cls}">${a.decisao || '—'}</span>
+      </div>
+      <div class="result-meta">${a.autores || ''} ${a.ano ? '· ' + a.ano : ''} · ${a.fonte || ''} ${a.doi ? '· ' + a.doi : ''}</div>
+      ${a.justificativa ? `<div class="result-justificativa">${a.justificativa}</div>` : ''}
+      <div class="result-confidence">Confiança da IA: ${a.confianca || 0}%</div>
+    </div>`;
+  }).join('');
+}
+
+// --- UTILS ---
+function showStatus(id, msg, tipo) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.className = 'status-msg' + (msg ? ' show ' + tipo : '');
+}
+
+// Init
+renderCriteriosAtivos();
+</script>
+</body>
+</html>
