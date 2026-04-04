@@ -77,7 +77,7 @@ rsl_triagem/
 ### 1. Acesse o Painel
 
 Acesse o painel pelo GitHub Pages:  
-👉 [https://c1ceroand.github.io/rsl_triagem/](https://c1ceroand.github.io/rsl_triagem/)
+[https://c1ceroand.github.io/rsl_triagem/](https://c1ceroand.github.io/rsl_triagem/)
 
 ---
 
