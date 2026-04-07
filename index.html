@@ -857,53 +857,54 @@
   }
 
   // ── EXECUTE ──
+  // CORRIGIDO: envia todos os arquivos em uma única requisição (array "arquivos")
+  // em vez de uma requisição por arquivo, resolvendo o problema de corte no n8n.
   async function executarTriagem() {
     if (selectedFiles.length === 0) return;
 
-    showLoading('Enviando arquivos para o n8n...');
+    showLoading('Lendo arquivos...');
     setStep(2);
 
     const criteriosInclusao = document.getElementById('criterios-inclusao').value;
     const criteriosExclusao = document.getElementById('criterios-exclusao').value;
 
-    let successCount = 0;
+    // Lê todos os arquivos em paralelo
+    const arquivos = await Promise.all(selectedFiles.map(async (file) => {
+      const content = await readFileAsText(file);
+      return {
+        filename: file.name,
+        format: file.name.endsWith('.ris') ? 'ris' : 'bibtex',
+        content: content
+      };
+    }));
 
-    for (let i = 0; i < selectedFiles.length; i++) {
-      const file = selectedFiles[i];
-      updateLoading(`Processando ${file.name} (${i+1}/${selectedFiles.length})...`);
-      setStep(3);
+    updateLoading(`Enviando ${arquivos.length} arquivo(s) para triagem...`);
+    setStep(3);
 
-      try {
-        const content = await readFileAsText(file);
-        const format = file.name.endsWith('.ris') ? 'ris' : 'bibtex';
+    try {
+      const response = await fetch(WEBHOOK_URL(), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          arquivos: arquivos,
+          criterios: {
+            inclusao: criteriosInclusao,
+            exclusao: criteriosExclusao
+          }
+        })
+      });
 
-        const response = await fetch(WEBHOOK_URL(), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            filename: file.name,
-            format: format,
-            content: content,
-            criterios: {
-              inclusao: criteriosInclusao,
-              exclusao: criteriosExclusao
-            }
-          })
-        });
+      hideLoading();
+      setStep(4);
 
-        if (response.ok) successCount++;
-      } catch(e) {
-        console.error('Erro ao enviar ' + file.name, e);
+      if (response.ok) {
+        setStatus('status-upload', `${arquivos.length} arquivo(s) enviados com sucesso! Verifique os resultados no Google Sheets.`, 'success');
+      } else {
+        setStatus('status-upload', 'Erro ao processar. Verifique a URL do webhook nas configurações.', 'error');
       }
-    }
-
-    hideLoading();
-    setStep(4);
-
-    if (successCount > 0) {
-      setStatus('status-upload', `${successCount} arquivo(s) processado(s) com sucesso! Verifique os resultados no Google Sheets.`, 'success');
-    } else {
-      setStatus('status-upload', 'Erro ao processar os arquivos. Verifique a URL do webhook nas configurações.', 'error');
+    } catch(e) {
+      hideLoading();
+      setStatus('status-upload', 'Erro de conexão: ' + e.message, 'error');
     }
   }
 
@@ -952,7 +953,6 @@
         body: JSON.stringify({ acao: 'resultados' })
       });
       const data = await r.json();
-      // n8n "All Incoming Items" retorna [{dados: [...]}]
       if (Array.isArray(data) && data[0] && data[0].dados) {
         allResults = data[0].dados;
       } else if (data.dados) {
@@ -1012,7 +1012,6 @@
   // ── CONFIG ──
   function salvarConfig() {
     setStatus('status-config', 'Configurações salvas!', 'success');
-    document.querySelector('.sheets-container iframe').src = document.getElementById('config-sheets').value;
   }
 
   // ── HELPERS ──
@@ -1045,9 +1044,6 @@
 
   // ── INIT ──
   carregarCriteriosSalvos();
-
-  // Também precisa atualizar o nó Listar Arquivos no n8n para aceitar conteúdo via webhook
-  // O workflow vai receber { filename, format, content, criterios } no body
 </script>
 </body>
 </html>
