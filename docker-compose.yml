@@ -1,0 +1,44 @@
+version: '3.8'
+
+services:
+  n8n:
+    # Imagem oficial do n8n — não fixar versão permite receber atualizações automáticas.
+    # Para ambientes de produção, fixe a versão: n8nio/n8n:1.x.x
+    image: n8nio/n8n
+    container_name: n8n_tcc
+    # Reinicia o container automaticamente se o Docker for reiniciado ou travar
+    restart: always
+    ports:
+      # Porta padrão do n8n. Acesse em: http://localhost:5678
+      - "5678:5678"
+    environment:
+      # Host e porta internos do n8n
+      - N8N_HOST=localhost
+      - N8N_PORT=5678
+
+      # URL base usada para montar os endereços dos webhooks.
+      # Como tudo roda localmente, mantém http://localhost:5678.
+      # Os webhooks ficam disponíveis em: http://localhost:5678/webhook/<path>
+      - WEBHOOK_URL=http://localhost:5678
+
+      # Permite que os nós de código (Code nodes) usem módulos built-in do Node.js
+      # como Buffer, crypto, path — necessário para parsing de BibTeX/RIS
+      - NODE_FUNCTION_ALLOW_BUILTIN=*
+
+      # Permite importar módulos externos nos nós de código, se necessário
+      - NODE_FUNCTION_ALLOW_EXTERNAL=*
+
+      # Habilita CORS para que o painel web (aberto localmente no navegador)
+      # consiga fazer requisições ao n8n sem ser bloqueado pelo browser.
+      # '*' aceita qualquer origem local — adequado para uso em desenvolvimento/pesquisa.
+      - N8N_CORS_ENABLED=true
+      - N8N_CORS_ALLOWED_ORIGINS=*
+
+    volumes:
+      # Persiste todos os dados do n8n (workflows, credenciais, histórico de execuções)
+      # em um volume Docker gerenciado. Os dados sobrevivem a reinicializações do container.
+      # ATENÇÃO: não commitar o conteúdo deste volume — ele contém credenciais em texto puro.
+      - n8n_data:/home/node/.n8n
+
+volumes:
+  n8n_data:

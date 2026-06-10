@@ -1,0 +1,341 @@
+{
+  "name": "FLUXO_TCC_OLLAMA",
+  "nodes": [
+    {
+      "parameters": {
+        "jsCode": "const body = $input.first().json.body;\nconst arquivos = body.arquivos || [];\nconst criterios = body.criterios || {};\n\nreturn arquivos.map(arquivo => ({\n  json: {\n    filename: arquivo.filename,\n    format: arquivo.format || 'bibtex',\n    criterios: criterios\n  },\n  binary: {\n    data: {\n      data: Buffer.from(arquivo.content || '').toString('base64'),\n      mimeType: 'text/plain',\n      fileName: arquivo.filename\n    }\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        16,
+        0
+      ],
+      "id": "c23d6d8f-1258-45c1-99cd-cac5c4337140",
+      "name": "Listar Arquivos"
+    },
+    {
+      "parameters": {
+        "jsCode": "function detectarFonte(text, filename) {\n  if (text.includes('Scopus') && text.includes('EXPORT DATE')) return 'scopus';\n  if (filename.toLowerCase().includes('scopus')) return 'scopus';\n  if (filename.toLowerCase().includes('acm') ||\n      text.includes('10.1145') ||\n      text.includes('Association for Computing Machinery')) return 'acm';\n  return 'ieee';\n}\n\nfunction parseBibTeX(text, fonte) {\n  const entries = [];\n\n  // Remove cabeçalho do Scopus\n  const clean = text.replace(/^Scopus[\\s\\S]*?(?=@)/m, '').trim();\n\n  // Normaliza line endings\n  const normalized = clean.replace(/\\r\\n/g, '\\n').replace(/\\r/g, '\\n');\n\n  // Divide entradas conforme o padrão da base\n  let blocks;\n  if (fonte === 'scopus' || fonte === 'acm') {\n    blocks = normalized.split(/\\n\\n(?=@)/);\n  } else {\n    // IEEE: entradas coladas }@ sem quebra de linha\n    blocks = normalized.split(/\\}(?=@)/);\n  }\n\n  for (const block of blocks) {\n    const trimmed = block.trim();\n    if (!trimmed || !trimmed.startsWith('@')) continue;\n\n    const headerMatch = trimmed.match(/^@(\\w+)\\s*\\{\\s*([^,\\n]+),/);\n    if (!headerMatch) continue;\n\n    const entry = {\n      _type: headerMatch[1].toLowerCase(),\n      _key: headerMatch[2].trim()\n    };\n\n    // Extrai campos no formato campo={valor} com suporte a chaves aninhadas\n    const fieldRegex = /^\\s*(\\w+)\\s*=\\s*\\{((?:[^{}]|\\{[^{}]*\\})*)\\}/gm;\n    let fm;\n    while ((fm = fieldRegex.exec(trimmed)) !== null) {\n      const key = fm[1].toLowerCase().trim();\n      const val = fm[2].replace(/\\s+/g, ' ').trim();\n      if (key && val) entry[key] = val;\n    }\n\n    // Fallback: campo = \"valor\" (aspas)\n    const quotedRegex = /^\\s*(\\w+)\\s*=\\s*\"([^\"]*)\"/gm;\n    while ((fm = quotedRegex.exec(trimmed)) !== null) {\n      const key = fm[1].toLowerCase().trim();\n      if (!entry[key]) entry[key] = fm[2].replace(/\\s+/g, ' ').trim();\n    }\n\n    // Normaliza campos de diferentes bases para nomes padrão\n    entry.title    = entry.title    || entry.booktitle   || '';\n    entry.author   = entry.author   || entry.authors     || '';\n    entry.abstract = entry.abstract || entry.description || '';\n    entry.journal  = entry.journal  || entry.abbrev_source_title || '';\n\n    if (entry.title) entries.push(entry);\n  }\n  return entries;\n}\n\nfunction parseRIS(text) {\n  const entries = [];\n  const blocks = text.split(/ER\\s*-\\s*/).filter(b => b.trim());\n  for (const block of blocks) {\n    const entry = { _type: 'article', _key: '' };\n    const lines = block.split(/\\r?\\n/);\n    for (const line of lines) {\n      const match = line.match(/^([A-Z][A-Z0-9])\\s+-\\s+(.+)$/);\n      if (!match) continue;\n      const [, tag, value] = match;\n      switch (tag) {\n        case 'TY': entry._type    = value.trim().toLowerCase(); break;\n        case 'ID': entry._key     = value.trim(); break;\n        case 'TI':\n        case 'T1': entry.title    = value.trim(); break;\n        case 'AU':\n        case 'A1': entry.author   = entry.author\n                     ? entry.author + '; ' + value.trim()\n                     : value.trim(); break;\n        case 'PY':\n        case 'Y1': entry.year     = value.trim().split('/')[0]; break;\n        case 'DO': entry.doi      = value.trim(); break;\n        case 'AB':\n        case 'N2': entry.abstract = value.trim(); break;\n        case 'JO':\n        case 'JF':\n        case 'T2': entry.journal  = value.trim(); break;\n      }\n    }\n    if (entry.title) entries.push(entry);\n  }\n  return entries;\n}\n\nconst allItems = $input.all();\nconst results = [];\n\nfor (const inputItem of allItems) {\n  let content = '';\n  let filename = '';\n\n  if (inputItem.binary && inputItem.binary.data) {\n    content = Buffer.from(inputItem.binary.data.data, 'base64').toString('utf-8');\n    filename = inputItem.binary.data.fileName || inputItem.json.filename || 'arquivo';\n  }\n\n  if (!content) continue;\n\n  const isRIS = filename.toLowerCase().endsWith('.ris');\n  let parsed;\n\n  if (isRIS) {\n    parsed = parseRIS(content);\n  } else {\n    const fonte = detectarFonte(content, filename);\n    parsed = parseBibTeX(content, fonte);\n  }\n\n  for (const entry of parsed) {\n    results.push({ json: { ...entry, _filename: filename, _format: isRIS ? 'ris' : 'bibtex' } });\n  }\n}\n\nif (results.length === 0) {\n  results.push({ json: { erro: 'nenhum artigo encontrado', _filename: '', _format: '' } });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ],
+      "id": "3ded7fa1-12d7-42cc-85b0-af1e312a8881",
+      "name": "Parser (BibTex/Ris)"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "function cleanText(text) {\n  if (!text) return '';\n  return text\n    .replace(/<[^>]*>/g, '')\n    .replace(/&amp;/g, '&')\n    .replace(/&lt;/g, '<')\n    .replace(/&gt;/g, '>')\n    .replace(/&nbsp;/g, ' ')\n    .replace(/\\s+/g, ' ')\n    .trim();\n}\n\nfunction detectSource(filename) {\n  if (!filename) return 'desconhecida';\n  const f = filename.toLowerCase();\n  if (f.includes('acm'))    return 'ACM';\n  if (f.includes('ieee'))   return 'IEEE';\n  if (f.includes('scopus')) return 'Scopus';\n  return filename;\n}\n\nconst item = $input.item.json;\n\nreturn {\n  titulo:  cleanText(item.titulo  || item.title   || item.Título || ''),\n  autores: cleanText(item.autor   || item.author  || item.Autor  || ''),\n  ano:     cleanText(item.ano     || item.year    || item.Ano    || ''),\n  doi:     cleanText(item.doi     || item.DOI     || ''),\n  resumo:  cleanText(item.resumo  || item.abstract|| item.Resumo || ''),\n  fonte:   detectSource(item._filename),\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        0
+      ],
+      "id": "f598d453-3909-48e1-b43d-69b6b1efb96d",
+      "name": "Limpeza"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Título: {{ $json.titulo }}\nResumo: {{ $json.resumo }}\nAno: {{ $json.ano }}",
+        "options": {
+          "systemMessage": "Você é um assistente especializado em triagem de artigos científicos para Revisões Sistemáticas da Literatura (RSL), seguindo o protocolo PRISMA. Sua função é classificar artigos que já passaram pela verificação de data e chegaram até você para análise semântica.\n\nIMPORTANTE: Os artigos que chegam até você já estão dentro do período de publicação definido nos critérios. Foque sua análise no conteúdo — título, resumo e alinhamento temático com os critérios.\n\n═══════════════════════════════════════\nCRITÉRIOS DE INCLUSÃO (fornecidos pelo pesquisador):\n{{criterios_inclusao}}\n\nCRITÉRIOS DE EXCLUSÃO (fornecidos pelo pesquisador):\n{{criterios_exclusao}}\n═══════════════════════════════════════\n\nPROCESSO DE ANÁLISE OBRIGATÓRIO:\nExecute mentalmente cada etapa antes de responder:\n\nETAPA 1 — VERIFICAÇÃO DE EXCLUSÃO (prioridade absoluta):\nVerifique cada critério de exclusão individualmente contra o título e resumo.\nSe QUALQUER critério de exclusão for atendido → EXCLUIR, independentemente dos critérios de inclusão.\n\nETAPA 2 — VERIFICAÇÃO DE INCLUSÃO (apenas se passou etapa 1):\nVerifique cada critério de inclusão individualmente.\nPara INCLUIR, o artigo deve atender a PELO MENOS UM critério de forma explícita ou claramente inferível.\n\nETAPA 3 — AMBIGUIDADE (apenas se etapas 1 e 2 inconclusivas):\nUse REVISAR somente quando:\n- O resumo é vago demais para decidir\n- Há contradição direta entre critérios de inclusão e exclusão\n- Informações essenciais estão ausentes no resumo\n\n═══════════════════════════════════════\nREGRAS DE EXCLUSÃO SEMÂNTICA:\nAplique EXCLUIR imediatamente se:\n- O artigo é explicitamente uma revisão sistemática, mapeamento ou meta-análise, se isso for critério de exclusão\n- O tipo de publicação não corresponde ao definido nos critérios (editorial, carta, resumo estendido)\n- O idioma não corresponde ao definido nos critérios\n- O tema central do artigo não tem relação com os critérios de inclusão\n\nARTIGOS SEM RESUMO:\n- Se \"artigos sem resumo\" for critério de exclusão explícito → EXCLUIR, confiança 95\n- Caso contrário → REVISAR, confiança 50, justificando qual informação está ausente\n\n═══════════════════════════════════════\nCALIBRAÇÃO DE CONFIANÇA — SIGA ESTAS REGRAS EXATAMENTE:\n\nPara INCLUIR:\n- 97: título E resumo mencionam o tema central de forma explícita e detalhada\n- 95: título E resumo confirmam o critério de inclusão de forma clara\n- 88: apenas o título confirma, o resumo confirma parcialmente\n- 75: título confirma, resumo é genérico mas compatível\n- 60: apenas inferência fraca — use REVISAR neste caso\n\nPara EXCLUIR:\n- 97: título E resumo violam o critério de exclusão de forma explícita\n- 95: título viola claramente o critério de exclusão\n- 88: exclusão inferível pelo resumo, título neutro\n- 75: exclusão provável mas com alguma dúvida — considere REVISAR\n\nPara REVISAR:\n- 50: resumo ausente ou informação insuficiente\n- 40: conflito entre critérios, decisão genuinamente ambígua\n- Nunca use confiança abaixo de 40 para REVISAR\n\nPROIBIDO:\n- Usar confiança 0 exceto quando título E resumo estão completamente ausentes\n- Usar sempre o mesmo valor de confiança para todos os artigos de uma decisão\n- Usar valores não listados acima sem justificativa clara\n\n═══════════════════════════════════════\nREGRAS DE FORMATAÇÃO DA JUSTIFICATIVA:\nA justificativa DEVE:\n- Citar o critério específico pelo seu conteúdo\n- Indicar onde no título ou resumo a evidência foi encontrada\n- Para EXCLUIR: qual critério foi violado e por quê\n- Para INCLUIR: qual critério foi atendido e como\n- Para REVISAR: qual informação está ausente ou qual conflito existe\n- Ter entre 1 e 3 frases — objetiva e informativa\n\nPROIBIDO na justificativa:\n- \"Atende a pelo menos um critério de inclusão\" sem especificar qual\n- \"Nenhum critério de exclusão foi mencionado\" como justificativa para incluir\n- Afirmações sobre conteúdo sem evidência no texto\n- Repetir o título como justificativa\n\n═══════════════════════════════════════\nEXEMPLOS DE CLASSIFICAÇÃO CORRETA:\n\nExemplo INCLUIR confiança 97:\nTítulo: \"DevSecOps: Integrating Security into Agile Development Pipelines\"\nResumo: \"This paper presents an empirical study on integrating SAST and DAST tools into CI/CD pipelines, measuring vulnerability reduction rates across three agile teams.\"\nJustificativa: \"O título e resumo descrevem explicitamente integração de segurança em pipelines CI/CD com dados empíricos, atendendo com alta evidência ao critério de inclusão sobre segurança no desenvolvimento de software.\"\n\nExemplo INCLUIR confiança 88:\nTítulo: \"Secure Software Lifecycle Practices in DevOps Environments\"\nResumo: \"We survey current DevOps adoption patterns in enterprise environments.\"\nJustificativa: \"O título menciona explicitamente segurança no ciclo de vida do software, atendendo ao critério de inclusão; o resumo confirma parcialmente ao mencionar DevOps, mas sem detalhar práticas de segurança.\"\n\nExemplo EXCLUIR confiança 97:\nTítulo: \"A Systematic Review of Vulnerability Detection Methods\"\nResumo: \"We systematically reviewed 87 papers on automated vulnerability scanning, applying inclusion and exclusion criteria...\"\nCritério de exclusão: \"Estudos secundários como revisões sistemáticas\"\nJustificativa: \"O título e resumo confirmam explicitamente tratar-se de uma revisão sistemática, violando o critério de exclusão que restringe estudos secundários.\"\n\nExemplo EXCLUIR confiança 88:\nTítulo: \"Network Infrastructure Optimization for Cloud Environments\"\nResumo: \"We propose a load balancing algorithm to reduce latency in cloud deployments.\"\nCritério de inclusão: \"Estudos sobre segurança no desenvolvimento de software\"\nJustificativa: \"O resumo confirma que o artigo trata exclusivamente de otimização de infraestrutura e balanceamento de carga, sem relação com segurança no desenvolvimento de software.\"\n\nExemplo REVISAR confiança 50:\nTítulo: \"Security Challenges in Modern Systems\"\nResumo: [ausente]\nJustificativa: \"O resumo está ausente, impossibilitando verificar se o artigo aborda segurança no desenvolvimento de software conforme o critério de inclusão. Recomenda-se acesso ao texto completo.\"\n\nExemplo REVISAR confiança 40:\nTítulo: \"Agile Security: Balancing Speed and Compliance\"\nResumo: \"This paper discusses trade-offs between development velocity and regulatory compliance in financial institutions.\"\nJustificativa: \"O título sugere relação com segurança no desenvolvimento ágil, mas o resumo foca em conformidade regulatória em finanças, criando ambiguidade sobre o alinhamento com os critérios de inclusão.\"\n\n═══════════════════════════════════════\nINSTRUÇÃO FINAL:\nResponda APENAS no seguinte formato JSON. Nenhum texto antes ou depois.\nNão inclua markdown, não inclua explicações fora do JSON.\n\n{\n  \"decisao\": \"INCLUIR\" ou \"EXCLUIR\" ou \"REVISAR\",\n  \"confianca\": número inteiro de 0 a 100,\n  \"justificativa\": \"explicação específica citando o critério e a evidência encontrada no texto\"\n}"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        688,
+        0
+      ],
+      "id": "b0c6722c-d866-40aa-82e3-28a489d6ba78",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "function normalizarDecisao(decisao) {\n  if (!decisao) return 'REVISAR';\n  const d = decisao.toUpperCase();\n  if (d.includes('INCLU')) return 'INCLUIR';\n  if (d.includes('EXCLU')) return 'EXCLUIR';\n  return 'REVISAR';\n}\n\nconst limpeza = $('Limpeza').item.json;\nconst item = $input.item.json;\nconst output = item.output || '';\n\n// Prefixo de espaço para evitar interpretação como fórmula no Sheets\nconst s = (v) => String(v || '').replace(/^[=+\\-@]/, \" $&\");\n\n// Extrai ano numérico do campo ano\nconst anoStr = String(limpeza.ano || '');\nconst anoMatch = anoStr.match(/\\b(19|20)\\d{2}\\b/);\nconst anoNum = anoMatch ? parseInt(anoMatch[0]) : null;\n\n// Exclusão automática por data — não depende do LLM\nif (anoNum && (anoNum < 2019 || anoNum > 2025)) {\n  return {\n    titulo:        s(limpeza.titulo),\n    autores:       s(limpeza.autores),\n    ano:           s(limpeza.ano),\n    doi:           s(limpeza.doi),\n    fonte:         s(limpeza.fonte),\n    decisao:       'EXCLUIR',\n    confianca:     99,\n    justificativa: `Excluído automaticamente: ano de publicação (${anoNum}) fora do intervalo definido nos critérios (2019-2025).`\n  };\n}\n\n// Parseia resposta do agente\nlet triagem = {};\ntry {\n  const jsonMatch = output.match(/\\{[\\s\\S]*?\\}(?=\\s*$)/);\n  triagem = jsonMatch ? JSON.parse(jsonMatch[0]) : {};\n} catch(e) {\n  triagem = {\n    decisao: 'REVISAR',\n    confianca: 0,\n    justificativa: 'Erro ao parsear resposta da IA'\n  };\n}\n\n// Corrige confiança 0 em exclusões por data que passaram pelo agente\nconst decisaoFinal = normalizarDecisao(triagem.decisao);\nlet confiancaFinal = Number(triagem.confianca) || 0;\n\nif (decisaoFinal === 'EXCLUIR' &&\n    triagem.justificativa &&\n    triagem.justificativa.toLowerCase().includes('publicado em')) {\n  confiancaFinal = 95;\n}\n\nreturn {\n  titulo:        s(limpeza.titulo),\n  autores:       s(limpeza.autores),\n  ano:           s(limpeza.ano),\n  doi:           s(limpeza.doi),\n  fonte:         s(limpeza.fonte),\n  decisao:       decisaoFinal,\n  confianca:     confiancaFinal,\n  justificativa: s(triagem.justificativa || ''),\n};"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "72a86fcd-37f0-4834-845e-b5d0faf1ec56",
+      "name": "Organizador de resultados"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "Triagem_RSL",
+        "responseMode": "lastNode",
+        "options": {
+          "binaryPropertyName": "data"
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -208,
+        0
+      ],
+      "id": "2fcf0a0c-622e-4dbf-824e-c3a91af7a0c0",
+      "name": "Webhook",
+      "webhookId": "e5e6f92b-25d4-432a-a850-c5c63bae069b"
+    },
+    {
+      "parameters": {
+        "model": "=llama3.2:3b",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOllama",
+      "typeVersion": 1,
+      "position": [
+        768,
+        224
+      ],
+      "id": "0533b07d-bd70-476d-8630-8ddfcb74b7b8",
+      "name": "Ollama Chat Model",
+      "credentials": {
+        "ollamaApi": {
+          "id": "MKMNyH3HHYueMD0g",
+          "name": "Ollama account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1-TEQLYxrKOg9Jf8lLDTqw4JsS_b5mfKHRhEuqQfq-A4",
+          "mode": "list",
+          "cachedResultName": "test_n8n_tcc",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-TEQLYxrKOg9Jf8lLDTqw4JsS_b5mfKHRhEuqQfq-A4/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Página1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1-TEQLYxrKOg9Jf8lLDTqw4JsS_b5mfKHRhEuqQfq-A4/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {
+            "justificativa": "=={{ $json.justificativa }}",
+            "confianca": "=={{ $json.confianca }}",
+            "decisao": "=={{ $json.decisao }}",
+            "doi": "=={{ $json.doi }}",
+            "fonte": "=={{ $json.fonte }}",
+            "ano": "=={{ $json.ano }}",
+            "autores": "=={{ $json.autores }}",
+            "titulo": "=={{ $json.titulo }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "titulo",
+              "displayName": "titulo",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "autores",
+              "displayName": "autores",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ano",
+              "displayName": "ano",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "doi",
+              "displayName": "doi",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "fonte",
+              "displayName": "fonte",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "decisao",
+              "displayName": "decisao",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "confianca",
+              "displayName": "confianca",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "justificativa",
+              "displayName": "justificativa",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "validacao_humana",
+              "displayName": "validacao_humana",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1264,
+        0
+      ],
+      "id": "ef65e63e-3120-462b-8119-a5188093989f",
+      "name": "Append row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "F7oXyYv2fCncSE2s",
+          "name": "Google Sheets account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Listar Arquivos": {
+      "main": [
+        [
+          {
+            "node": "Parser (BibTex/Ris)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parser (BibTex/Ris)": {
+      "main": [
+        [
+          {
+            "node": "Limpeza",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limpeza": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Organizador de resultados",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Organizador de resultados": {
+      "main": [
+        [
+          {
+            "node": "Append row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Listar Arquivos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ollama Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "7f4d7613-959d-4816-8ecf-1b4440dce014",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "eb8745040792d6a521cae7566ef36c7772b76467e60976309b76e41f7cb10d47"
+  },
+  "id": "9JA7aR3bpkOVEwQe",
+  "tags": []
+}

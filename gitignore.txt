@@ -1,0 +1,20 @@
+# Volume do n8n — contém credenciais criptografadas e histórico de execuções
+n8n_data/
+.n8n/
+
+# Arquivos de dados bibliográficos usados em testes locais
+bibtex_files/
+*.bib
+*.ris
+
+# Variáveis de ambiente (caso venha a usar no futuro)
+.env
+.env.*
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Logs
+*.log
+logs/
